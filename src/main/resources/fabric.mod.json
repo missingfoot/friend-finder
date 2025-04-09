@@ -1,0 +1,38 @@
+{
+	"schemaVersion": 1,
+	"id": "friend-finder",
+	"version": "${version}",
+	"name": "Friend Finder",
+	"description": "Shows a simple directional indicator to help you find your friends in the Minecraft world. Use the F key to toggle the display.",
+	"authors": [
+		"missingfoot"
+	],
+	"contact": {
+		"homepage": "https://modrinth.com/mod/friend-finder",
+		"issues": "https://github.com/missingfoot/friend-finder/issues",
+		"sources": "https://github.com/missingfoot/friend-finder"
+	},
+	"license": "MIT",
+	"icon": "assets/friend-finder/icon.png",
+	"environment": "client",
+	"entrypoints": {
+		"main": [
+			"com.example.friendfinder.FriendFinderMod"
+		],
+		"client": [
+			"com.example.friendfinder.FriendFinderClient"
+		]
+	},
+	"mixins": [
+		"friend-finder.mixins.json"
+	],
+	"depends": {
+		"fabricloader": ">=0.15.5",
+		"minecraft": "~1.21.5",
+		"java": ">=17",
+		"fabric-api": "*"
+	},
+	"suggests": {
+		"another-mod": "*"
+	}
+}
