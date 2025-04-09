@@ -4,12 +4,22 @@ A simple Minecraft mod that helps you locate other players on your server using 
 
 ## Features
 
+Current Features:
 - **Player Direction**: Shows the direction to the nearest player
 - **Distance Display**: Shows exact block distance to the target player
 - **Height Indicator**: Displays height difference with + or - indicators
 - **Color Coding**: Different colors for distance and height values for better readability
 - **Toggle System**: Press 'I' key to show/hide the directional information
 - **Default State**: Starts disabled by default for non-intrusive gameplay
+
+Planned Features (In Development):
+- **Player Cycling**: Press a key to cycle between different players on the server
+- **Waypoint System**: 
+  - Look at a block and press a key to add it as a waypoint
+  - Waypoints show block type (e.g., "Grass Block")
+  - Automatically removed when the block is broken
+  - Cycle between players and waypoints with a single key
+  - "Waypoint not found" message when in different dimension
 
 ## Display Format
 
