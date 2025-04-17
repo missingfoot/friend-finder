@@ -25,6 +25,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import java.util.stream.Collectors;
 import net.minecraft.block.Block;
+import java.util.HashSet;
 
 /**
  * Friend Finder Client - Shows the direction to your friends
@@ -445,11 +446,26 @@ public class FriendFinderClient implements ClientModInitializer {
 		LOGGER.info("Attempting to remove waypoint at position: {}", pos);
 		
 		int initialSize = targets.size();
-		targets.removeIf(target -> 
-			!target.isPlayer() && 
-			target.getBlockPos() != null &&
-			target.getBlockPos().equals(pos)
-		);
+		targets.removeIf(target -> {
+			if (!target.isPlayer() && target.getBlockPos() != null) {
+				// Check if the position matches
+				boolean positionMatches = target.getBlockPos().equals(pos);
+				
+				// Also check if the block at this position is air or different
+				if (positionMatches) {
+					BlockState currentState = MinecraftClient.getInstance().world.getBlockState(pos);
+					Block currentBlock = currentState.getBlock();
+					Block targetBlock = target.getBlock();
+					
+					LOGGER.info("Checking waypoint at {}: Current block = {}, Target block = {}, Is air = {}", 
+						pos, currentBlock.getName().getString(), targetBlock.getName().getString(), currentState.isAir());
+					
+					// Remove if block is air or different
+					return currentState.isAir() || !currentBlock.equals(targetBlock);
+				}
+			}
+			return false;
+		});
 		
 		int removedCount = initialSize - targets.size();
 		LOGGER.info("Removed {} waypoints at position {}", removedCount, pos);
@@ -543,93 +559,78 @@ public class FriendFinderClient implements ClientModInitializer {
 	}
 
 	public void onClientTick(MinecraftClient client) {
-		if (client.player == null || client.world == null) return;
+		if (client.player == null || client.world == null || !isEnabled) return;
 
-		// Only update targets if the mod is enabled
-		if (isEnabled) {
+		// Only update player targets when necessary (e.g., when players join/leave)
+		boolean playersChanged = false;
+		List<PlayerEntity> currentPlayers = client.world.getPlayers();
+		List<UUID> currentPlayerIds = currentPlayers.stream()
+			.filter(p -> p != client.player)
+			.map(PlayerEntity::getUuid)
+			.collect(Collectors.toList());
+		
+		// Check if player list has changed
+		if (targets.stream()
+			.filter(TrackableTarget::isPlayer)
+			.map(TrackableTarget::getId)
+			.collect(Collectors.toSet())
+			.equals(new HashSet<>(currentPlayerIds))) {
+			playersChanged = true;
+		}
+
+		if (playersChanged) {
 			// Remove all player targets first
-			targets.removeIf(target -> target.isPlayer());
-			
-			// Get current targets before update for comparison
-			List<String> previousTargets = targets.stream()
-				.map(TrackableTarget::getName)
-				.collect(Collectors.toList());
+			targets.removeIf(TrackableTarget::isPlayer);
 			
 			// Add all players except the client player
-			for (PlayerEntity player : client.world.getPlayers()) {
+			for (PlayerEntity player : currentPlayers) {
 				if (player != client.player) {
 					targets.add(new TrackableTarget(player));
 				}
 			}
+		}
 
-			// Remove waypoints whose blocks no longer exist
+		// Check waypoints only if we have any
+		if (!targets.isEmpty()) {
 			List<TrackableTarget> waypointsToRemove = new ArrayList<>();
 			for (TrackableTarget target : targets) {
 				if (!target.isPlayer()) {
 					BlockPos pos = target.getBlockPos();
 					if (pos != null) {
+						// Cache the block state check
 						BlockState state = client.world.getBlockState(pos);
-						Block currentBlock = state.getBlock();
-						Block targetBlock = target.getBlock();
-						
-						LOGGER.info("Checking waypoint at {}: Current block = {}, Target block = {}, Is air = {}", 
-							pos, currentBlock.getName().getString(), targetBlock.getName().getString(), state.isAir());
-							
-						if (state.isAir() || !currentBlock.equals(targetBlock)) {
-							LOGGER.info("Removing waypoint {} because block no longer exists", target.getName());
+						if (state.isAir() || !state.getBlock().equals(target.getBlock())) {
 							waypointsToRemove.add(target);
 						}
 					}
 				}
 			}
 			
-			// Remove the waypoints and update current target index if needed
 			if (!waypointsToRemove.isEmpty()) {
 				targets.removeAll(waypointsToRemove);
-				LOGGER.info("Removed {} waypoints", waypointsToRemove.size());
-				
-				// Adjust current target index if needed
 				if (!targets.isEmpty() && currentTargetIndex >= targets.size()) {
 					currentTargetIndex = targets.size() - 1;
-					LOGGER.info("Adjusted current target index to {}", currentTargetIndex);
 				}
-			}
-
-			// Get current targets after update
-			List<String> currentTargets = targets.stream()
-				.map(TrackableTarget::getName)
-				.collect(Collectors.toList());
-
-			// Only log if targets have changed
-			if (!previousTargets.equals(currentTargets)) {
-				LOGGER.info("Updating targets. Current targets before update: {}", String.join(", ", previousTargets));
-				LOGGER.info("Targets after update: {}", String.join(", ", currentTargets));
 			}
 		}
 
-		// Handle key presses
+		// Handle key presses (moved to end to prioritize updates)
 		if (toggleKey.wasPressed()) {
 			isEnabled = !isEnabled;
-			LOGGER.info("Toggle key pressed! Mod is now {}", isEnabled ? "enabled" : "disabled");
 		}
 
 		if (isEnabled) {
-			if (cycleTargetKey.wasPressed()) {
-				if (!targets.isEmpty()) {
-					currentTargetIndex = (currentTargetIndex + 1) % targets.size();
-					LOGGER.info("Cycle key pressed! Current targets: {}", targets.stream()
-						.map(TrackableTarget::getName)
-						.collect(Collectors.joining(", ")));
-					LOGGER.info("Current target index before cycling: {}", currentTargetIndex);
-					LOGGER.info("New target after cycling: {} at index {}", 
-						targets.get(currentTargetIndex).getName(), 
-						currentTargetIndex);
-				}
+			if (cycleTargetKey.wasPressed() && !targets.isEmpty()) {
+				currentTargetIndex = (currentTargetIndex + 1) % targets.size();
 			}
 
 			if (addWaypointKey.wasPressed()) {
 				addWaypoint();
 			}
 		}
+	}
+
+	public boolean isEnabled() {
+		return isEnabled;
 	}
 }
